@@ -1,8 +1,5 @@
 class keyGen:
     def __init__(self, PK):
-        self.plainKey = PK
-        self.binaryPlainKey = ' '.join(
-            '{0:08b}'.format(ord(x)) for x in self.plainKey)
         self.pChoice = [57, 49, 41, 33, 25, 17, 9,
                         1, 58, 50, 42, 34, 26, 18,
                         10, 2, 59, 51, 43, 35, 27,
@@ -19,21 +16,53 @@ class keyGen:
                          30, 40, 51, 45, 33, 48,
                          44, 49, 39, 56, 34, 53,
                          46, 42, 50, 36, 29, 32]
-        self.keyPermuted = ''.join(
-            format(self.binaryPlainKey[x]) for x in self.pChoice)
+        self.shiftCount = [1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1]
+
+        self.plainKey = PK
+
+        self.binaryPlainKey = self.conBinary(self.plainKey)
+        self.keyPermuted = self.permute(self.binaryPlainKey, self.pChoice)
+
         self.C = [self.keyPermuted[:len(self.keyPermuted)//2]]
         self.D = [self.keyPermuted[len(self.keyPermuted)//2:]]
-        self.shiftCount = [1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1]
+        
         self.shifter(self.C)
         self.shifter(self.D)
+
+        self.K = self.joinKey(self.C, self.D)
+        self.K = self.secondPermute(self.K, self.pChoice2)
+
+    def joinKey(self, c, d):
+        temp =[]
+        for i in range(16):
+            temp.append(c[i]+d[i])
+        return temp
+
+    def conBinary(self,string):
+        temp=[]
+        for i in [bin(ord(x))[2:] for x in string]:
+            while len(i) < 8:
+                i=str(0)+i
+            temp.extend(i)
+        return temp
+
+    def permute(self, binaryPlainKey, permutedChoice):
+        return [binaryPlainKey[i-1] for i in permutedChoice]
+
+    def secondPermute(self, key, permutedChoice):
+        temp =[]
+        temp1=[]
+        for key in key:
+            for i in permutedChoice:
+                temp1.append(key[i-1])
+            temp.append(temp1)
+        return temp
 
     def shifter(self, vlaue):
         temp = vlaue[0]
         for i in self.shiftCount:
-
             temp = temp[i:]+temp[:i]
             vlaue.append(temp)
         return
 
 Key = keyGen('Mohammed')
-
