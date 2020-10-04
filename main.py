@@ -56,6 +56,7 @@ class keyGen:
         self.R = self.textPermuted[len(self.textPermuted)//2:]
 
         self.Re = self.permute(self.R, self.expansionTable)
+        self.RXOR = self.XOR(self.Re,self.K)
 
     def joinKey(self, c, d):
         temp =[]
@@ -89,5 +90,12 @@ class keyGen:
             temp = temp[i:]+temp[:i]
             vlaue.append(temp)
         return
+    def XOR(self, List1, List2):
+        temp=[]
+        for i,j in zip(List1, List1):
+            
+            temp.append(int(i)^int(j))
+        return temp
 
 Key = keyGen('Mohammed','Mohammed')
+print(list(zip(Key.Re,Key.K[0])))
