@@ -1,6 +1,12 @@
-class keyGen:
-    def __init__(self, PK, PT):
+import json
 
+#import Hex to Binary table for conversion
+with open('data.json') as f:
+  data = json.load(f)
+
+class keyGen:
+    def __init__(self, PK, PT):#Pk = Plain Key, PT = Plain Text
+        #all of our constants
         self.pChoice = [57, 49, 41, 33, 25, 17, 9,
                         1, 58, 50, 42, 34, 26, 18,
                         10, 2, 59, 51, 43, 35, 27,
@@ -83,61 +89,136 @@ class keyGen:
                               1, 15, 23, 26, 5, 18, 31, 10,
                               2, 8, 24, 14, 32, 27, 3, 9,
                               19, 13, 30, 6, 22, 11, 4, 25]
+        self.IP = [40, 8, 48, 16, 56, 24, 64, 32,
+                    39, 7, 47, 15, 55, 23, 63, 31,
+                    38, 6, 46, 14, 54, 22, 62, 30,
+                    37, 5, 45, 13, 53, 21, 61, 29,
+                    36, 4, 44, 12, 52, 20, 60, 28,
+                    35, 3, 43, 11, 51, 19, 59, 27,
+                    34, 2, 42, 10, 50, 18, 58, 26,
+                    33, 1, 41, 9, 49, 17, 57, 25]
 
         self.shiftCount = [1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1]
+        #end of constants
 
-        self.plainKey = PK
-        self.binaryKey = self.conBinary(self.plainKey)
-        self.keyPermuted = self.permute(self.binaryKey, self.pChoice)
+        self.plainKey = [i for i in PK]#loop through the parameter to make a list
+        #self.binaryKey = self.conBinary(self.plainKey)#convert the plain key(STRING) to binary, uncomment to use STRING key
+        self.binaryKey = self.hextobin(self.plainKey)#conver the plain key(HEX) to binary,uncomment to use HEX key
+        self.keyPermuted = self.permute(self.binaryKey, self.pChoice)#perform first permutation on key
 
+        #create C and D
         self.C = [self.keyPermuted[:len(self.keyPermuted)//2]]
         self.D = [self.keyPermuted[len(self.keyPermuted)//2:]]
-
-        self.shifter(self.C)
-        self.shifter(self.D)
-
+        #shifing
+        self.C = self.shifter(self.C)
+        self.D = self.shifter(self.D)
+        #Join C and D to make K
         self.K = self.joinKey(self.C, self.D)
+        
+        #Perform permuted choice 2 on 16 keys
         self.K = self.secondPermute(self.K, self.pChoice2)
 
-        self.plainText = PT
+        #plain text section
+        self.plainText = [j for j in PT]
         self.binaryText = self.conBinary(self.plainText)
+        #self.binaryText = self.hextobin(self.plainText)
         self.textPermuted = self.permute(self.binaryText, self.initPermute)
-
+        
         self.L = self.textPermuted[:len(self.textPermuted)//2]
         self.R = self.textPermuted[len(self.textPermuted)//2:]
 
-        self.Re = self.permute(self.R, self.expansionTable)
-        self.RXOR = self.XOR(self.Re, self.K[0])
-        self.SBF = self.subBox(self.RXOR)
+        self.output = self.bintohex(self.sboxloop())
 
+    def hextobin(self,hex):
+        #convert hex input to binary
+        i=0
+        j=1
+        z=[]
+        temp = []
+        while len(z)<=(len(hex)//2):
+            #error handling for IndexErrors
+            try:
+                #append hex blocks of 2
+                z.append(hex[i]+hex[j])
+            except IndexError:
+                break
+            i += 2
+            j += 2
+        for x in z:   
+            #convert based on data from data.json
+            temp.extend(data['{}'.format(x)])
+        return temp
+    def bintohex(self,bin):
+        #convert bin to hex
+        i = 0
+        j = 8
+        z = []
+        temp = ''
+        while len(z)<=7:
+            try:
+                #strcture the list into blocks of 8
+                z.append(bin[i:j])
+            except IndexError:
+                break
+            i += 8
+            j += 8
+        for i in z:#iterate through 8 blocks
+            x=''  
+            for n in i:#iterate through each block
+                x+=str(n)#convert to string for comparison
+            for key, value in data.items():#iterate throught json data
+                if x == value:#compare data item with current block if matched then retrieve Key
+                    temp += key   
+        return temp
+    def sboxloop(self):
+        #Expansion followed by it's XOR operation the substitution
+        R=self.R#R0
+        L=self.L#L0
+        for k in self.K:#iterate 16 keys
+            Re = self.permute(R, self.expansionTable)#expansion
+            RXOR = self.XOR(Re, k)#XOR operation
+            SBF = self.subBox(RXOR)#sustitution
+            R1 = self.XOR(L, SBF[-1])#create R1 by (L(n) XOR f)
+            L = R#assign R(0)to L
+            R = R1 #assign R(1) to R(-1)
+        return self.permute(R+L, self.IP)#join and return inverse permutation
     def subBox(self, RXOR):
-        blockE = 6
+        blockE = 6#point to block end
         temp = []
         round = 0
+        
         while blockE-1 <= len(RXOR):
-            blockS = blockE - 6
-            row = str(RXOR[blockS])+str(RXOR[blockE-1])
-            column = ''.join([str(i) for i in RXOR[blockS:blockE-2]])
+            blockS = blockE - 6#point to start of block 6 behind blockS
+            #determine row vlaue then column
+            row = str(RXOR[blockS])+str(RXOR[blockE-1]) #convert to string then concatnate to be converted to decimal
+            column = ''.join([str(i) for i in RXOR[blockS+1:blockE-1]])#get item from X to Y of K1 XOR E(R) and convert each to value to string then join
+            #converting to decimal
             column = self.toDecimal(column)
             row = self.toDecimal(row)
-            sValue = self.sBox[round][row][column]
-            temp.extend(self.secondBin(sValue))
+
+            sValue = self.sBox[round][row][column]#get values from sBox 
+            
+           
+            temp.extend(self.secondBin(sValue))#convert to binary
+            
+            
             blockE += 6
             round += 1
-        temp = self.permute(temp, self.sbPermutation)
+        
+        temp = self.permute(temp, self.sbPermutation)#perumtation
         
         return [temp]
 
     def toDecimal(self, binary):  # from geeksforgeeks.org/binary-decimal-vice-versa-python/
         return int(binary, 2)
 
-    def joinKey(self, c, d):
+    def joinKey(self, c, d):#joining of two lists
         temp = []
         for i in range(16):
             temp.append(c[i]+d[i])
         return temp
 
-    def conBinary(self, string):
+    def conBinary(self, string):#convert a string to binary
         temp = []
         for i in [bin(ord(c))[2:] for c in string]:
             while len(i) < 8:
@@ -151,34 +232,39 @@ class keyGen:
             x = str(0)+x
         return x
 
-    def permute(self, binary, permutedChoice):
+    def permute(self, binary, permutedChoice):#perform a permutation
         return [binary[i-1] for i in permutedChoice]
 
-    def secondPermute(self, key, permutedChoice):
+    def secondPermute(self, key, permutedChoice):#perform a larger permutatrion for 16 list
         temp = []
+      
         for k in key:
+            
             temp1 = []
+            
             for i in permutedChoice:
                 temp1.extend(k[i-1])
             temp.append(temp1)
+           
         return temp
 
-    def shifter(self, vlaue):
+    def shifter(self, vlaue): #shift value
         temp = vlaue[0]
+        temp1=[]
         for i in self.shiftCount:
             temp = temp[i:]+temp[:i]
-            vlaue.append(temp)
-        return
+            temp1.append(temp)
+        return temp1
 
-    def XOR(self, List1, List2):
+    def XOR(self, List1, List2):#xor operation
         temp = []
         counter = 0
         for i in List1:
-            temp.append(int(i) ^ int(List2[0]))
+            temp.append(int(i) ^ int(List2[counter]))
             counter += 1
         return temp
 
 
-Key = keyGen('Mohammed', 'Mohammed')
-print(Key.R)
+Key = keyGen('133457799BBCDFF1', '0123456789ABCDEF')#plain Key, Plain Text
 
+print('C = '+Key.output)
